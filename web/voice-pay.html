@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoicePay - Voice Assist Payment</title>
+<style>
+  :root {
+    --brand: #2b2a7f;
+    --page: #e9ecf5;
+    --card: #ffffff;
+    --ink: #14142b;
+    --muted: #5b5f77;
+    --line: #d9dcea;
+    --listen: #c2410c;
+    --ok: #0f7b5f;
+    --bad: #b42318;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", Arial, sans-serif; background: var(--page); color: var(--ink); min-height: 100vh; display: flex; justify-content: center; }
+  .app { width: 100%; max-width: 440px; min-height: 100vh; display: flex; flex-direction: column; position: relative; }
+
+  header { background: var(--brand); color: #fff; padding: 22px 20px 54px; border-radius: 0 0 28px 28px; }
+  header h1 { font-size: 24px; }
+  header p { font-size: 15px; color: #d7d6ff; margin-top: 2px; }
+  .bal { margin-top: 14px; background: rgba(255,255,255,0.14); border-radius: 14px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+  .bal span { font-size: 15px; color: #d7d6ff; }
+  .bal strong { font-size: 24px; }
+
+  .screens { flex: 1; margin-top: -30px; }
+  .screen { display: none; padding: 0 16px 12px; }
+  .screen.active { display: block; }
+
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tile { background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 14px 8px; font-size: 16px; font-weight: 600; color: var(--ink); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .tile .ico { font-size: 32px; line-height: 1; }
+  .tile:hover { border-color: var(--brand); }
+
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .back { border: none; background: var(--card); border: 2px solid var(--line); border-radius: 12px; font-size: 18px; padding: 8px 14px; cursor: pointer; }
+  .topbar h2 { font-size: 21px; color: #fff; }
+  .panel label { display: block; font-size: 16px; font-weight: 600; margin: 12px 0 6px; }
+  .panel input { width: 100%; padding: 13px; font-size: 18px; border: 2px solid var(--line); border-radius: 12px; }
+  .info-line { font-size: 18px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .info-line:last-child { border-bottom: none; }
+  .big { font-size: 34px; font-weight: 700; color: var(--brand); }
+
+  .say { margin: 12px 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; font-size: 17px; line-height: 1.45; }
+  .say small { display: block; color: var(--muted); margin-top: 6px; font-size: 15px; }
+
+  .dock { background: var(--card); border-top: 1px solid var(--line); padding: 10px 16px 16px; margin-top: 12px; position: sticky; bottom: 0; }
+  #status { text-align: center; font-size: 15px; font-weight: 600; color: var(--muted); min-height: 20px; margin-bottom: 6px; }
+  #mic { display: block; margin: 0 auto 10px; width: 80px; height: 80px; border-radius: 50%; border: none; background: var(--brand); color: #fff; font-size: 34px; cursor: pointer; }
+  #mic.listening { background: var(--listen); }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; min-width: 0; padding: 12px; font-size: 17px; border: 2px solid var(--line); border-radius: 12px; }
+  .go { padding: 12px 18px; font-size: 17px; font-weight: 700; background: var(--brand); color: #fff; border: none; border-radius: 12px; cursor: pointer; }
+  .go.full { width: 100%; margin-top: 16px; }
+  .go.ghost { background: #fff; color: var(--brand); border: 2px solid var(--brand); }
+
+  .overlay { display: none; position: absolute; inset: 0; background: rgba(20,20,43,0.55); z-index: 10; align-items: flex-end; }
+  .overlay.show { display: flex; }
+  .sheet { background: var(--card); width: 100%; border-radius: 24px 24px 0 0; padding: 22px 18px 26px; }
+  .sheet h3 { font-size: 22px; margin-bottom: 6px; }
+  .sheet p { color: var(--muted); font-size: 16px; margin-bottom: 12px; }
+  #success { display: none; position: absolute; inset: 0; background: var(--card); z-index: 20; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; gap: 14px; }
+  #success.show { display: flex; }
+  #success .tick { width: 96px; height: 96px; border-radius: 50%; background: var(--ok); color: #fff; font-size: 54px; display: flex; align-items: center; justify-content: center; }
+  #success h2 { font-size: 26px; }
+  #success p { font-size: 18px; color: var(--muted); line-height: 1.5; }
+
+  button:focus-visible, input:focus-visible { outline: 4px solid #1570ef; outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <h1>VoicePay</h1>
+    <p>Speak or tap. Demo wallet, no real money.</p>
+    <div class="bal"><span>Wallet balance</span><strong id="balance">₹0</strong></div>
+  </header>
+
+  <div class="screens">
+    <!-- Page 1: Home -->
+    <section class="screen active" id="home">
+      <div class="tiles" id="tiles"></div>
+    </section>
+
+    <!-- Page 2: Service form -->
+    <section class="screen" id="svc">
+      <div class="topbar"><button class="back" id="backSvc" aria-label="Back to home">←</button><h2 id="svcTitle"></h2></div>
+      <div class="panel">
+        <div id="formFields"></div>
+        <button class="go full" id="payBtn">Pay</button>
+      </div>
+    </section>
+
+    <!-- Page 3: Balance / history -->
+    <section class="screen" id="info">
+      <div class="topbar"><button class="back" id="backInfo" aria-label="Back to home">←</button><h2 id="infoTitle"></h2></div>
+      <div class="panel" id="infoBody"></div>
+    </section>
+  </div>
+
+  <div class="say" id="sayBox"><span id="say">Tap the microphone and say what you want to do.</span><small id="heard"></small></div>
+
+  <div class="dock">
+    <div id="status" aria-live="polite">Ready</div>
+    <button id="mic" aria-label="Start speaking">🎤</button>
+    <div class="row">
+      <input type="text" id="typed" placeholder="Or type here" aria-label="Type here">
+      <button class="go" id="sendTyped">Send</button>
+    </div>
+  </div>
+
+  <!-- PIN sheet -->
+  <div class="overlay" id="pinOverlay">
+    <div class="sheet">
+      <h3>Enter PIN</h3>
+      <p id="pinInfo"></p>
+      <input type="password" id="pin" maxlength="4" inputmode="numeric" placeholder="4 digit PIN" aria-label="PIN" style="width:100%;padding:14px;font-size:20px;border:2px solid var(--line);border-radius:12px;margin-bottom:12px;">
+      <div class="row"><button class="go ghost" id="pinCancel">Cancel</button><button class="go" id="pinOk" style="flex:1">Confirm</button></div>
+    </div>
+  </div>
+
+  <!-- Success page -->
+  <div id="success">
+    <div class="tick">✓</div>
+    <h2 id="successTitle">Done</h2>
+    <p id="successText"></p>
+    <button class="go" id="doneBtn">Back to home</button>
+  </div>
+
+</div>
+
+<script>
+// =====================================================
+// Demo data (kept in the browser, no real money)
+// =====================================================
+const store = { balance: 10000, history: [] };
+try { const s = JSON.parse(localStorage.getItem("vp_state")); if (s) Object.assign(store, s); } catch (e) {}
+function saveStore() { try { localStorage.setItem("vp_state", JSON.stringify(store)); } catch (e) {} }
+const fmt = n => "₹" + Number(n).toLocaleString("en-IN");
+const PIN = "1234";
+
+// =====================================================
+// Helpers to understand spoken numbers
+// =====================================================
+const UNITS = {zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19};
+const TENS = {twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+function parseAmount(text) {
+  const t = text.toLowerCase().replace(/,/g, "");
+  const m = t.match(/\d+(\.\d+)?/);            // "199", "₹500", "500 rupees"
+  if (m) return parseFloat(m[0]);
+  let total = 0, current = 0, found = false;   // "five hundred", "two thousand"
+  for (const w of t.split(/[\s-]+/)) {
+    if (w in UNITS) { current += UNITS[w]; found = true; }
+    else if (w in TENS) { current += TENS[w]; found = true; }
+    else if (w === "hundred") { current = (current || 1) * 100; found = true; }
+    else if (w === "thousand") { total += (current || 1) * 1000; current = 0; found = true; }
+  }
+  return found ? total + current : NaN;
+}
+const DIGIT_WORDS = {zero:0,oh:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9};
+function digitsFrom(text) {                    // "99943 59332" or "nine nine nine..."
+  return text.toLowerCase().split(/[\s-]+/).map(w => (w in DIGIT_WORDS) ? DIGIT_WORDS[w] : w.replace(/\D/g, "")).join("");
+}
+
+// =====================================================
+// OOP: base class + one subclass per service (abstraction)
+// =====================================================
+class PaymentService {
+  constructor(title, icon, fields, isDebit = true) {
+    this.title = title; this.icon = icon; this.fields = fields; this.isDebit = isDebit;
+  }
+  describe(values) { throw new Error("Each service must define describe()"); }
+
+  check(field, raw) {                          // validation shared by all services
+    if (field.type === "amount") {
+      const n = parseAmount(raw);
+      if (!(n > 0)) return { ok: false, msg: "I could not understand the amount." };
+      if (this.isDebit && n > store.balance) return { ok: false, msg: "Insufficient balance. Your balance is " + fmt(store.balance) + "." };
+      if (!this.isDebit && n > 50000) return { ok: false, msg: "You can add up to 50,000 rupees at a time." };
+      return { ok: true, value: n };
+    }
+    if (field.type === "digits") {
+      const d = digitsFrom(raw);
+      if (d.length < field.min || d.length > field.max) {
+        return { ok: false, msg: "Please give " + (field.min === field.max ? field.min : field.min + " to " + field.max) + " digits." };
+      }
+      return { ok: true, value: d };
+    }
+    const t = raw.trim();
+    return t.length > 1 ? { ok: true, value: t } : { ok: false, msg: "I did not catch that." };
+  }
+
+  execute(values) {                            // runs after the PIN is correct
+    store.balance += this.isDebit ? -values.amount : values.amount;
+    const text = this.describe(values);
+    store.history.unshift({ title: this.title, text: text, amount: values.amount, debit: this.isDebit, time: new Date().toLocaleString("en-IN") });
+    store.history = store.history.slice(0, 20);
+    saveStore();
+    return text;
+  }
+}
+
+class MoneyTransfer extends PaymentService {
+  constructor() { super("Send Money", "💸", [
+    { key: "recipient", label: "Recipient name", prompt: "Please say the recipient name.", type: "text" },
+    { key: "amount", label: "Amount (rupees)", prompt: "Please say the amount.", type: "amount" } ]); }
+  describe(v) { return "Sent " + fmt(v.amount) + " to " + v.recipient + "."; }
+}
+class BillPayment extends PaymentService {
+  constructor(kind, icon) { super(kind + " Bill", icon, [
+    { key: "consumer", label: "Consumer number", prompt: "Please say your consumer number.", type: "digits", min: 6, max: 12 },
+    { key: "amount", label: "Bill amount (rupees)", prompt: "Please say the bill amount.", type: "amount" } ]);
+    this.kind = kind; }
+  describe(v) { return "Paid " + fmt(v.amount) + " for " + this.kind.toLowerCase() + " bill, consumer " + v.consumer + "."; }
+}
+class MobileRecharge extends PaymentService {
+  constructor() { super("Mobile Recharge", "📱", [
+    { key: "mobile", label: "Mobile number", prompt: "Please say the 10 digit mobile number.", type: "digits", min: 10, max: 10 },
+    { key: "amount", label: "Recharge amount (rupees)", prompt: "Please say the recharge amount.", type: "amount" } ]); }
+  describe(v) { return "Recharged " + v.mobile + " with " + fmt(v.amount) + "."; }
+}
+class QRPayment extends PaymentService {
+  constructor() { super("QR Payment", "🔳", [
+    { key: "merchant", label: "Merchant code", prompt: "Please say the merchant code.", type: "text" },
+    { key: "amount", label: "Amount (rupees)", prompt: "Please say the amount.", type: "amount" } ]); }
+  describe(v) { return "Paid " + fmt(v.amount) + " to merchant " + v.merchant + "."; }
+}
+class AddMoney extends PaymentService {
+  constructor() { super("Add Money to Wallet", "👛", [
+    { key: "amount", label: "Amount to add (rupees)", prompt: "How much money do you want to add?", type: "amount" } ], false); }
+  describe(v) { return "Added " + fmt(v.amount) + " to your wallet."; }
+}
+
+// Services that only show information (no fields, no PIN)
+class BalanceCheck {
+  constructor() { this.title = "Check Balance"; this.icon = "🏦"; this.fields = []; }
+  run() {
+    document.getElementById("infoTitle").textContent = "Wallet Balance";
+    document.getElementById("infoBody").innerHTML = '<div class="info-line">Available balance</div><div class="big">' + fmt(store.balance) + '</div>';
+    show("info");
+    say("Your wallet balance is " + store.balance + " rupees.");
+  }
+}
+class TransactionHistory {
+  constructor() { this.title = "History"; this.icon = "🧾"; this.fields = []; }
+  run() {
+    document.getElementById("infoTitle").textContent = "Recent Transactions";
+    const body = document.getElementById("infoBody");
+    if (store.history.length === 0) {
+      body.innerHTML = '<div class="info-line">No transactions yet.</div>';
+      show("info"); say("You have no transactions yet."); return;
+    }
+    body.innerHTML = store.history.slice(0, 8).map(h =>
+      '<div class="info-line"><strong>' + (h.debit ? "−" : "+") + fmt(h.amount) + "</strong> " + h.text + "<br><small>" + h.time + "</small></div>").join("");
+    show("info");
+    const top = store.history.slice(0, 3).map(h => h.text).join(" ");
+    say("Your last transactions. " + top);
+  }
+}
+
+// Service list used for the home tiles
+const SERVICES = [
+  () => new MoneyTransfer(),
+  () => new BillPayment("Electricity", "💡"),
+  () => new MobileRecharge(),
+  () => new BillPayment("Water", "🚰"),
+  () => new QRPayment(),
+  () => new AddMoney(),
+  () => new BalanceCheck(),
+  () => new TransactionHistory()
+];
+
+// Maps the spoken text to a service
+function mapCommand(text) {
+  const c = text.toLowerCase();
+  if (c.includes("balance")) return new BalanceCheck();
+  if (c.includes("history") || c.includes("transaction") || c.includes("statement")) return new TransactionHistory();
+  if (c.includes("add money") || c.includes("wallet") || c.includes("top up") || c.includes("topup")) return new AddMoney();
+  if (c.includes("water")) return new BillPayment("Water", "🚰");
+  if (c.includes("electric") || c.includes("bill")) return new BillPayment("Electricity", "💡");
+  if (c.includes("recharge")) return new MobileRecharge();
+  if (c.includes("qr")) return new QRPayment();
+  if (c.includes("transfer") || c.includes("send")) return new MoneyTransfer();
+  return null;
+}
+
+// =====================================================
+// Screen helpers
+// =====================================================
+const $ = id => document.getElementById(id);
+function show(name) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  $(name).classList.add("active");
+}
+function updateBalance() { $("balance").textContent = fmt(store.balance); }
+function showSay(msg) { $("say").textContent = msg; }
+
+// =====================================================
+// Voice output (Speech Synthesis)
+// =====================================================
+function say(message, then) {
+  showSay(message);
+  let called = false;
+  const go = () => { if (called) return; called = true; if (then) setTimeout(then, 250); };
+  if (!("speechSynthesis" in window)) { go(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(message);
+  u.lang = "en-IN"; u.onend = go; u.onerror = go;
+  window.speechSynthesis.speak(u);
+  setTimeout(go, Math.max(2500, message.length * 110));   // safety net if the browser never reports the end
+}
+
+// =====================================================
+// Voice input (Speech Recognition)
+// =====================================================
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, noHear = 0, currentPrompt = "Say a service name, like mobile recharge or check balance.";
+
+function listen() {
+  if (!SR) { $("status").textContent = "Voice input not supported here. Use Chrome, or type below."; return; }
+  if (awaitingPin) return;
+  try { if (rec) rec.abort(); } catch (e) {}
+  rec = new SR();
+  rec.lang = "en-IN"; rec.interimResults = false; rec.maxAlternatives = 1;
+  let got = false, lastErr = "";
+  rec.onstart = () => { $("mic").classList.add("listening"); $("status").textContent = "Listening..."; };
+  rec.onresult = e => { got = true; noHear = 0; handleInput(e.results[0][0].transcript); };
+  rec.onerror = e => { lastErr = e.error; };
+  rec.onend = () => {
+    $("mic").classList.remove("listening");
+    if (got || awaitingPin) return;
+    if (lastErr === "not-allowed" || lastErr === "service-not-allowed") {
+      $("status").textContent = "Microphone is blocked. Allow it in the address bar, or type below."; return;
+    }
+    if (lastErr === "no-speech" && noHear < 2) {
+      noHear++; say("I did not hear anything. " + currentPrompt, listen); return;
+    }
+    $("status").textContent = "Tap the microphone to try again.";
+  };
+  try { rec.start(); } catch (e) { $("status").textContent = "Tap the microphone to try again."; }
+}
+
+// =====================================================
+// Conversation flow
+// =====================================================
+let svc = null, idx = 0, awaitingPin = false, pinTries = 0, pendingValues = null;
+
+function goHome() {
+  svc = null; idx = 0; awaitingPin = false; pendingValues = null;
+  $("pinOverlay").classList.remove("show");
+  $("success").classList.remove("show");
+  currentPrompt = "Say a service name, like mobile recharge or check balance.";
+  updateBalance(); show("home"); $("status").textContent = "Ready";
+}
+
+function openService(s) {
+  if (!s.fields || s.fields.length === 0) { s.run(); return; }   // info pages
+  svc = s; idx = 0; awaitingPin = false;
+  $("svcTitle").textContent = s.icon + " " + s.title;
+  $("formFields").innerHTML = s.fields.map(f =>
+    '<label for="f_' + f.key + '">' + f.label + '</label><input id="f_' + f.key + '" type="text" autocomplete="off">').join("");
+  show("svc");
+  ask();
+}
+
+function ask() {
+  currentPrompt = svc.fields[idx].prompt;
+  say(svc.title + ". " + currentPrompt, listen);
+}
+
+function handleInput(text) {
+  $("heard").textContent = "You said: " + text;
+  const c = text.toLowerCase();
+
+  if (c.includes("cancel") || c.includes("go home") || c.includes("home") || c.includes("back")) {
+    say("Going back to the home page.", goHome); return;
+  }
+
+  if (!svc) {                                   // no service open: understand the command
+    const s = mapCommand(text);
+    if (!s) { say("Sorry, I did not understand. Try: mobile recharge, send money, electricity bill, check balance, or add money.", listen); return; }
+    openService(s);
+    return;
+  }
+
+  if (idx >= svc.fields.length) {               // form already full
+    if (c.includes("pay") || c.includes("confirm") || c.includes("yes")) submitForm();
+    else say("Say pay to confirm, or say cancel.", listen);
+    return;
+  }
+
+  const field = svc.fields[idx];
+  const result = svc.check(field, text);
+  if (!result.ok) { say(result.msg + " " + field.prompt, listen); return; }
+  $("f_" + field.key).value = result.value;
+  idx++;
+  if (idx < svc.fields.length) ask(); else submitForm();
+}
+
+// Reads the form (typed or spoken), validates, then asks for the PIN
+function submitForm() {
+  const values = {};
+  for (const f of svc.fields) {
+    const raw = $("f_" + f.key).value;
+    const r = svc.check(f, raw);
+    if (!r.ok) { say(r.msg + " Please fix: " + f.label + ".", null); $("f_" + f.key).focus(); return; }
+    values[f.key] = r.value;
+  }
+  pendingValues = values;
+  awaitingPin = true; pinTries = 0;
+  try { if (rec) rec.abort(); } catch (e) {}
+  $("pinInfo").textContent = svc.describe(values);
+  $("pinOverlay").classList.add("show");
+  $("pin").value = ""; $("pin").focus();
+  say("Please type your 4 digit PIN and press confirm.");
+}
+
+function confirmPin() {
+  const entered = $("pin").value;
+  $("pin").value = "";
+  if (entered === PIN) {
+    const text = svc.execute(pendingValues);
+    $("pinOverlay").classList.remove("show");
+    awaitingPin = false;
+    updateBalance();
+    $("successTitle").textContent = svc.isDebit ? "Payment successful" : "Money added";
+    $("successText").textContent = text + " New balance: " + fmt(store.balance) + ".";
+    $("success").classList.add("show");
+    say(text + " Your new balance is " + store.balance + " rupees.");
+  } else {
+    pinTries++;
+    if (pinTries >= 3) { $("pinOverlay").classList.remove("show"); say("Too many wrong attempts. Transaction cancelled.", goHome); return; }
+    say("Wrong PIN. Please try again.");
+    $("pin").focus();
+  }
+}
+
+// =====================================================
+// Buttons
+// =====================================================
+SERVICES.forEach(make => {
+  const s = make();
+  const b = document.createElement("button");
+  b.className = "tile";
+  b.innerHTML = '<span class="ico">' + s.icon + "</span>" + s.title;
+  b.addEventListener("click", () => openService(make()));
+  $("tiles").appendChild(b);
+});
+
+$("mic").addEventListener("click", () => {
+  if (!svc && $("say").textContent.startsWith("Tap the microphone")) {
+    say("Welcome. You can say: mobile recharge, send money, electricity bill, water bill, QR payment, add money, check balance, or history.", listen);
+  } else { noHear = 0; listen(); }
+});
+$("sendTyped").addEventListener("click", () => {
+  const box = $("typed");
+  if (box.value.trim()) { handleInput(box.value.trim()); box.value = ""; }
+});
+$("typed").addEventListener("keydown", e => { if (e.key === "Enter") $("sendTyped").click(); });
+$("payBtn").addEventListener("click", () => { if (svc) submitForm(); });
+$("backSvc").addEventListener("click", goHome);
+$("backInfo").addEventListener("click", goHome);
+$("pinOk").addEventListener("click", confirmPin);
+$("pin").addEventListener("keydown", e => { if (e.key === "Enter") confirmPin(); });
+$("pinCancel").addEventListener("click", () => { say("Transaction cancelled.", goHome); });
+$("doneBtn").addEventListener("click", goHome);
+
+updateBalance();
+</script>
+</body>
+</html>
