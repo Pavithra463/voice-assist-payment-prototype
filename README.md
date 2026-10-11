@@ -4,6 +4,7 @@ A prototype of a voice-guided payment application designed to make digital payme
 
 > **Note:** This is a learning prototype. All payments are simulated. There is no real bank, payment gateway, or real money involved.
 >
+> 
 > **Live demo:** https://pavithra463.github.io/voice-assist-payment-prototype/web/voice-pay.html (open in Chrome and allow the microphone)
 
 ## What it does
