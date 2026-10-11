@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoicePay - Voice Assist Payment</title>
+<style>
+  :root {
+    --brand: #2b2a7f;
+    --page: #e9ecf5;
+    --card: #ffffff;
+    --ink: #14142b;
+    --muted: #5b5f77;
+    --line: #d9dcea;
+    --listen: #c2410c;
+    --ok: #0f7b5f;
+    --bad: #b42318;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", "Noto Sans Tamil", Arial, sans-serif; background: var(--page); color: var(--ink); min-height: 100vh; display: flex; justify-content: center; }
+  .app { width: 100%; max-width: 440px; min-height: 100vh; display: flex; flex-direction: column; position: relative; }
+
+  header { background: var(--brand); color: #fff; padding: 22px 20px 54px; border-radius: 0 0 28px 28px; }
+  .hrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  header h1 { font-size: 24px; }
+  #lang { font-family: inherit; font-size: 15px; font-weight: 600; padding: 7px 10px; border-radius: 10px; border: none; background: #fff; color: var(--brand); cursor: pointer; }
+  header p { font-size: 15px; color: #d7d6ff; margin-top: 2px; }
+  .bal { margin-top: 14px; background: rgba(255,255,255,0.14); border-radius: 14px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+  .bal span { font-size: 15px; color: #d7d6ff; }
+  .bal strong { font-size: 24px; }
+
+  .screens { flex: 1; margin-top: -30px; }
+  .screen { display: none; padding: 0 16px 12px; }
+  .screen.active { display: block; }
+
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tile { background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 14px 8px; font-family: inherit; font-size: 16px; font-weight: 600; color: var(--ink); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+  .tile .ico { font-size: 32px; line-height: 1; }
+  .tile:hover { border-color: var(--brand); }
+
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .back { border: none; background: var(--card); border: 2px solid var(--line); border-radius: 12px; font-size: 18px; padding: 8px 14px; cursor: pointer; }
+  .topbar h2 { font-size: 21px; color: #fff; }
+  .panel label { display: block; font-size: 16px; font-weight: 600; margin: 12px 0 6px; }
+  .panel input { width: 100%; padding: 13px; font-size: 18px; border: 2px solid var(--line); border-radius: 12px; font-family: inherit; }
+  .info-line { font-size: 18px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .info-line:last-child { border-bottom: none; }
+  .big { font-size: 34px; font-weight: 700; color: var(--brand); }
+
+  .say { margin: 12px 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; font-size: 17px; line-height: 1.45; }
+  .say small { display: block; color: var(--muted); margin-top: 6px; font-size: 15px; }
+  .say small:empty { display: none; }
+
+  .dock { background: var(--card); border-top: 1px solid var(--line); padding: 10px 16px 16px; margin-top: 12px; position: sticky; bottom: 0; }
+  #status { text-align: center; font-size: 15px; font-weight: 600; color: var(--muted); min-height: 20px; margin-bottom: 6px; }
+  #mic { display: block; margin: 0 auto 10px; width: 80px; height: 80px; border-radius: 50%; border: none; background: var(--brand); color: #fff; font-size: 34px; cursor: pointer; }
+  #mic.listening { background: var(--listen); }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; min-width: 0; padding: 12px; font-size: 17px; border: 2px solid var(--line); border-radius: 12px; font-family: inherit; }
+  .go { padding: 12px 18px; font-family: inherit; font-size: 17px; font-weight: 700; background: var(--brand); color: #fff; border: none; border-radius: 12px; cursor: pointer; }
+  .go.full { width: 100%; margin-top: 16px; }
+  .go.ghost { background: #fff; color: var(--brand); border: 2px solid var(--brand); }
+
+  .overlay { display: none; position: absolute; inset: 0; background: rgba(20,20,43,0.55); z-index: 10; align-items: flex-end; }
+  .overlay.show { display: flex; }
+  .sheet { background: var(--card); width: 100%; border-radius: 24px 24px 0 0; padding: 22px 18px 26px; }
+  .sheet h3 { font-size: 22px; margin-bottom: 6px; }
+  .sheet p { color: var(--muted); font-size: 16px; margin-bottom: 12px; }
+  #success { display: none; position: absolute; inset: 0; background: var(--card); z-index: 20; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; gap: 14px; }
+  #success.show { display: flex; }
+  #success .tick { width: 96px; height: 96px; border-radius: 50%; background: var(--ok); color: #fff; font-size: 54px; display: flex; align-items: center; justify-content: center; }
+  #success h2 { font-size: 26px; }
+  #success p { font-size: 18px; color: var(--muted); line-height: 1.5; }
+
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 4px solid #1570ef; outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="hrow">
+      <h1>VoicePay</h1>
+      <select id="lang" data-i18n-aria="langLabel">
+        <option value="en-IN">English</option>
+        <option value="hi-IN">हिन्दी</option>
+        <option value="ta-IN">தமிழ்</option>
+      </select>
+    </div>
+    <p data-i18n="subtitle"></p>
+    <div class="bal"><span data-i18n="walletBalance"></span><strong id="balance">₹0</strong></div>
+  </header>
+
+  <div class="screens">
+    <!-- Page 1: Home -->
+    <section class="screen active" id="home">
+      <div class="tiles" id="tiles"></div>
+    </section>
+
+    <!-- Page 2: Service form -->
+    <section class="screen" id="svc">
+      <div class="topbar"><button class="back" id="backSvc" data-i18n-aria="backHome">←</button><h2 id="svcTitle"></h2></div>
+      <div class="panel">
+        <div id="formFields"></div>
+        <button class="go full" id="payBtn" data-i18n="payBtn"></button>
+      </div>
+    </section>
+
+    <!-- Page 3: Balance / history -->
+    <section class="screen" id="info">
+      <div class="topbar"><button class="back" id="backInfo" data-i18n-aria="backHome">←</button><h2 id="infoTitle"></h2></div>
+      <div class="panel" id="infoBody"></div>
+    </section>
+  </div>
+
+  <div class="say" id="sayBox"><span id="say"></span><small id="heard"></small><small id="voiceNote"></small></div>
+
+  <div class="dock">
+    <div id="status" aria-live="polite"></div>
+    <button id="mic" data-i18n-aria="micAria">🎤</button>
+    <div class="row">
+      <input type="text" id="typed" data-i18n-ph="typePh" data-i18n-aria="typePh">
+      <button class="go" id="sendTyped" data-i18n="sendBtn"></button>
+    </div>
+  </div>
+
+  <!-- PIN sheet -->
+  <div class="overlay" id="pinOverlay">
+    <div class="sheet">
+      <h3 data-i18n="pinTitle"></h3>
+      <p id="pinInfo"></p>
+      <input type="password" id="pin" maxlength="4" inputmode="numeric" data-i18n-ph="pinPh" data-i18n-aria="pinPh" style="width:100%;padding:14px;font-size:20px;border:2px solid var(--line);border-radius:12px;margin-bottom:12px;">
+      <div class="row"><button class="go ghost" id="pinCancel" data-i18n="pinCancel"></button><button class="go" id="pinOk" style="flex:1" data-i18n="pinConfirm"></button></div>
+    </div>
+  </div>
+
+  <!-- Success page -->
+  <div id="success">
+    <div class="tick">✓</div>
+    <h2 id="successTitle"></h2>
+    <p id="successText"></p>
+    <button class="go" id="doneBtn" data-i18n="backHome"></button>
+  </div>
+
+</div>
+
+<script>
+// =====================================================
+// Languages: English, Hindi, Tamil
+// =====================================================
+const LANGS = ["en-IN", "hi-IN", "ta-IN"];
+let LANG = "en-IN";
+try { const l = localStorage.getItem("vp_lang"); if (LANGS.includes(l)) LANG = l; } catch (e) {}
+
+const I18N = {
+  "en-IN": {
+    subtitle: "Speak or tap. Demo wallet, no real money.",
+    walletBalance: "Wallet balance",
+    langLabel: "Language",
+    micAria: "Start speaking",
+    tapMic: "Tap the microphone and say what you want to do.",
+    ready: "Ready",
+    listening: "Listening...",
+    tryAgain: "Tap the microphone to try again.",
+    micBlocked: "Microphone is blocked. Allow it in the address bar, or type below.",
+    noVoiceInput: "Voice input not supported here. Use Chrome, or type below.",
+    noVoiceOut: "Spoken replies are not available for this language on this device. Text is shown instead.",
+    typePh: "Or type here",
+    sendBtn: "Send",
+    payBtn: "Pay",
+    backHome: "Back to home",
+    youSaid: "You said: ",
+    welcome: "Welcome. You can say: mobile recharge, send money, electricity bill, water bill, QR payment, add money, check balance, or history.",
+    homePrompt: "Say a service name, like mobile recharge or check balance.",
+    notUnderstood: "Sorry, I did not understand. Try: mobile recharge, send money, electricity bill, check balance, or add money.",
+    didNotHear: "I did not hear anything. ",
+    goingHome: "Going back to the home page.",
+    sayPayConfirm: "Say pay to confirm, or say cancel.",
+    fixField: "Please fix: {label}.",
+    title_send: "Send Money",
+    title_mobile: "Mobile Recharge",
+    bill_electricity: "Electricity Bill",
+    bill_water: "Water Bill",
+    title_qr: "QR Payment",
+    title_add: "Add Money to Wallet",
+    title_balance: "Check Balance",
+    title_history: "History",
+    lbl_recipient: "Recipient name", prm_recipient: "Please say the recipient name.",
+    lbl_amount: "Amount (rupees)", prm_amount: "Please say the amount.",
+    lbl_consumer: "Consumer number", prm_consumer: "Please say your consumer number.",
+    lbl_billAmount: "Bill amount (rupees)", prm_billAmount: "Please say the bill amount.",
+    lbl_mobile: "Mobile number", prm_mobile: "Please say the 10 digit mobile number.",
+    lbl_rechargeAmount: "Recharge amount (rupees)", prm_rechargeAmount: "Please say the recharge amount.",
+    lbl_merchant: "Merchant code", prm_merchant: "Please say the merchant code.",
+    lbl_addAmount: "Amount to add (rupees)", prm_addAmount: "How much money do you want to add?",
+    err_amount: "I could not understand the amount.",
+    err_insufficient: "Insufficient balance. Your balance is {bal}.",
+    err_limit: "You can add up to 50,000 rupees at a time.",
+    err_digits: "Please give {n} digits.",
+    err_digitsRange: "Please give {a} to {b} digits.",
+    err_text: "I did not catch that.",
+    desc_send: "Sent {amount} to {recipient}.",
+    desc_bill_electricity: "Paid {amount} for electricity bill, consumer {consumer}.",
+    desc_bill_water: "Paid {amount} for water bill, consumer {consumer}.",
+    desc_mobile: "Recharged {mobile} with {amount}.",
+    desc_qr: "Paid {amount} to merchant {merchant}.",
+    desc_add: "Added {amount} to your wallet.",
+    infoBalanceTitle: "Wallet Balance",
+    availBalance: "Available balance",
+    sayBalance: "Your wallet balance is {n} rupees.",
+    infoHistoryTitle: "Recent Transactions",
+    noTx: "No transactions yet.",
+    sayNoTx: "You have no transactions yet.",
+    sayHistory: "Your last transactions. {list}",
+    pinTitle: "Enter PIN",
+    pinPh: "4 digit PIN",
+    pinConfirm: "Confirm",
+    pinCancel: "Cancel",
+    pinSay: "Please type your 4 digit PIN and press confirm.",
+    pinWrong: "Wrong PIN. Please try again.",
+    pinTooMany: "Too many wrong attempts. Transaction cancelled.",
+    cancelled: "Transaction cancelled.",
+    paySuccess: "Payment successful",
+    moneyAdded: "Money added",
+    newBalance: "New balance: {bal}.",
+    sayNewBalance: "Your new balance is {n} rupees."
+  },
+
+  "hi-IN": {
+    subtitle: "बोलिए या टैप कीजिए। डेमो वॉलेट, असली पैसे नहीं।",
+    walletBalance: "वॉलेट बैलेंस",
+    langLabel: "भाषा",
+    micAria: "बोलना शुरू करें",
+    tapMic: "माइक्रोफ़ोन दबाइए और बताइए कि आप क्या करना चाहते हैं।",
+    ready: "तैयार",
+    listening: "सुन रहा हूँ...",
+    tryAgain: "दोबारा कोशिश करने के लिए माइक्रोफ़ोन दबाइए।",
+    micBlocked: "माइक्रोफ़ोन बंद है। एड्रेस बार में अनुमति दीजिए, या नीचे टाइप कीजिए।",
+    noVoiceInput: "यहाँ वॉइस इनपुट उपलब्ध नहीं है। Chrome इस्तेमाल कीजिए, या नीचे टाइप कीजिए।",
+    noVoiceOut: "इस डिवाइस पर इस भाषा में बोलकर जवाब उपलब्ध नहीं है। जवाब लिखकर दिखाया जा रहा है।",
+    typePh: "या यहाँ टाइप कीजिए",
+    sendBtn: "भेजें",
+    payBtn: "भुगतान करें",
+    backHome: "होम पर वापस",
+    youSaid: "आपने कहा: ",
+    welcome: "स्वागत है। आप कह सकते हैं: मोबाइल रिचार्ज, पैसे भेजो, बिजली बिल, पानी बिल, क्यूआर पेमेंट, पैसे जोड़ो, बैलेंस देखो, या हिस्ट्री।",
+    homePrompt: "किसी सेवा का नाम बोलिए, जैसे मोबाइल रिचार्ज या बैलेंस देखो।",
+    notUnderstood: "माफ़ कीजिए, मैं समझ नहीं पाया। कहिए: मोबाइल रिचार्ज, पैसे भेजो, बिजली बिल, बैलेंस देखो, या पैसे जोड़ो।",
+    didNotHear: "मुझे कुछ सुनाई नहीं दिया। ",
+    goingHome: "होम पेज पर वापस जा रहे हैं।",
+    sayPayConfirm: "पक्का करने के लिए हाँ बोलिए, या रद्द बोलिए।",
+    fixField: "कृपया ठीक कीजिए: {label}।",
+    title_send: "पैसे भेजें",
+    title_mobile: "मोबाइल रिचार्ज",
+    bill_electricity: "बिजली बिल",
+    bill_water: "पानी बिल",
+    title_qr: "क्यूआर पेमेंट",
+    title_add: "वॉलेट में पैसे जोड़ें",
+    title_balance: "बैलेंस देखें",
+    title_history: "हिस्ट्री",
+    lbl_recipient: "प्राप्तकर्ता का नाम", prm_recipient: "कृपया प्राप्तकर्ता का नाम बताइए।",
+    lbl_amount: "राशि (रुपये)", prm_amount: "कृपया राशि बताइए।",
+    lbl_consumer: "उपभोक्ता नंबर", prm_consumer: "कृपया अपना उपभोक्ता नंबर बताइए।",
+    lbl_billAmount: "बिल की राशि (रुपये)", prm_billAmount: "कृपया बिल की राशि बताइए।",
+    lbl_mobile: "मोबाइल नंबर", prm_mobile: "कृपया 10 अंकों का मोबाइल नंबर बताइए।",
+    lbl_rechargeAmount: "रिचार्ज राशि (रुपये)", prm_rechargeAmount: "कृपया रिचार्ज की राशि बताइए।",
+    lbl_merchant: "मर्चेंट कोड", prm_merchant: "कृपया मर्चेंट कोड बताइए।",
+    lbl_addAmount: "जोड़ने की राशि (रुपये)", prm_addAmount: "आप कितने पैसे जोड़ना चाहते हैं?",
+    err_amount: "मैं राशि समझ नहीं पाया।",
+    err_insufficient: "बैलेंस कम है। आपका बैलेंस {bal} है।",
+    err_limit: "आप एक बार में 50,000 रुपये तक जोड़ सकते हैं।",
+    err_digits: "कृपया {n} अंक बताइए।",
+    err_digitsRange: "कृपया {a} से {b} अंक बताइए।",
+    err_text: "मैं समझ नहीं पाया।",
+    desc_send: "{recipient} को {amount} भेजे गए।",
+    desc_bill_electricity: "बिजली बिल के लिए {amount} का भुगतान किया, उपभोक्ता नंबर {consumer}।",
+    desc_bill_water: "पानी बिल के लिए {amount} का भुगतान किया, उपभोक्ता नंबर {consumer}।",
+    desc_mobile: "{mobile} को {amount} से रिचार्ज किया।",
+    desc_qr: "मर्चेंट {merchant} को {amount} का भुगतान किया।",
+    desc_add: "आपके वॉलेट में {amount} जोड़े गए।",
+    infoBalanceTitle: "वॉलेट बैलेंस",
+    availBalance: "उपलब्ध बैलेंस",
+    sayBalance: "आपके वॉलेट में {n} रुपये हैं।",
+    infoHistoryTitle: "हाल के लेनदेन",
+    noTx: "अभी कोई लेनदेन नहीं है।",
+    sayNoTx: "आपका अभी कोई लेनदेन नहीं है।",
+    sayHistory: "आपके पिछले लेनदेन। {list}",
+    pinTitle: "पिन डालिए",
+    pinPh: "4 अंकों का पिन",
+    pinConfirm: "पक्का करें",
+    pinCancel: "रद्द करें",
+    pinSay: "कृपया अपना 4 अंकों का पिन टाइप कीजिए और पक्का करें दबाइए।",
+    pinWrong: "गलत पिन। कृपया दोबारा कोशिश कीजिए।",
+    pinTooMany: "बहुत ज़्यादा गलत कोशिशें। लेनदेन रद्द किया गया।",
+    cancelled: "लेनदेन रद्द किया गया।",
+    paySuccess: "भुगतान सफल",
+    moneyAdded: "पैसे जुड़ गए",
+    newBalance: "नया बैलेंस: {bal}।",
+    sayNewBalance: "आपका नया बैलेंस {n} रुपये है।"
+  },
+
+  "ta-IN": {
+    subtitle: "பேசுங்கள் அல்லது தொடுங்கள். டெமோ வாலட், உண்மையான பணம் இல்லை.",
+    walletBalance: "வாலட் இருப்பு",
+    langLabel: "மொழி",
+    micAria: "பேசத் தொடங்கு",
+    tapMic: "மைக்ரோஃபோனைத் தொட்டு, என்ன செய்ய வேண்டும் என்று சொல்லுங்கள்.",
+    ready: "தயார்",
+    listening: "கேட்கிறேன்...",
+    tryAgain: "மீண்டும் முயற்சிக்க மைக்ரோஃபோனைத் தொடுங்கள்.",
+    micBlocked: "மைக்ரோஃபோன் தடுக்கப்பட்டுள்ளது. முகவரிப் பட்டியில் அனுமதி கொடுங்கள், அல்லது கீழே தட்டச்சு செய்யுங்கள்.",
+    noVoiceInput: "இங்கே குரல் உள்ளீடு ஆதரிக்கப்படவில்லை. Chrome பயன்படுத்துங்கள், அல்லது கீழே தட்டச்சு செய்யுங்கள்.",
+    noVoiceOut: "இந்தச் சாதனத்தில் இந்த மொழியில் குரல் பதில் கிடைக்கவில்லை. பதில் எழுத்தில் காட்டப்படுகிறது.",
+    typePh: "அல்லது இங்கே தட்டச்சு செய்யுங்கள்",
+    sendBtn: "அனுப்பு",
+    payBtn: "பணம் செலுத்து",
+    backHome: "முகப்புக்குத் திரும்பு",
+    youSaid: "நீங்கள் சொன்னது: ",
+    welcome: "வணக்கம். நீங்கள் சொல்லலாம்: மொபைல் ரீசார்ஜ், பணம் அனுப்பு, மின் கட்டணம், தண்ணீர் கட்டணம், க்யூஆர் பேமெண்ட், பணம் சேர், இருப்பு பார், அல்லது ஹிஸ்டரி.",
+    homePrompt: "ஒரு சேவையின் பெயரைச் சொல்லுங்கள், எடுத்துக்காட்டாக மொபைல் ரீசார்ஜ் அல்லது இருப்பு பார்.",
+    notUnderstood: "மன்னிக்கவும், எனக்குப் புரியவில்லை. சொல்லுங்கள்: மொபைல் ரீசார்ஜ், பணம் அனுப்பு, மின் கட்டணம், இருப்பு பார், அல்லது பணம் சேர்.",
+    didNotHear: "எனக்கு எதுவும் கேட்கவில்லை. ",
+    goingHome: "முகப்புப் பக்கத்துக்குத் திரும்புகிறோம்.",
+    sayPayConfirm: "உறுதி செய்ய ஆம் என்று சொல்லுங்கள், அல்லது ரத்து என்று சொல்லுங்கள்.",
+    fixField: "தயவுசெய்து சரி செய்யுங்கள்: {label}.",
+    title_send: "பணம் அனுப்பு",
+    title_mobile: "மொபைல் ரீசார்ஜ்",
+    bill_electricity: "மின் கட்டணம்",
+    bill_water: "தண்ணீர் கட்டணம்",
+    title_qr: "க்யூஆர் பேமெண்ட்",
+    title_add: "வாலட்டில் பணம் சேர்",
+    title_balance: "இருப்பு பார்",
+    title_history: "ஹிஸ்டரி",
+    lbl_recipient: "பெறுநர் பெயர்", prm_recipient: "தயவுசெய்து பெறுநரின் பெயரைச் சொல்லுங்கள்.",
+    lbl_amount: "தொகை (ரூபாய்)", prm_amount: "தயவுசெய்து தொகையைச் சொல்லுங்கள்.",
+    lbl_consumer: "நுகர்வோர் எண்", prm_consumer: "தயவுசெய்து உங்கள் நுகர்வோர் எண்ணைச் சொல்லுங்கள்.",
+    lbl_billAmount: "கட்டணத் தொகை (ரூபாய்)", prm_billAmount: "தயவுசெய்து கட்டணத் தொகையைச் சொல்லுங்கள்.",
+    lbl_mobile: "மொபைல் எண்", prm_mobile: "தயவுசெய்து 10 இலக்க மொபைல் எண்ணைச் சொல்லுங்கள்.",
+    lbl_rechargeAmount: "ரீசார்ஜ் தொகை (ரூபாய்)", prm_rechargeAmount: "தயவுசெய்து ரீசார்ஜ் தொகையைச் சொல்லுங்கள்.",
+    lbl_merchant: "வணிகர் குறியீடு", prm_merchant: "தயவுசெய்து வணிகர் குறியீட்டைச் சொல்லுங்கள்.",
+    lbl_addAmount: "சேர்க்கும் தொகை (ரூபாய்)", prm_addAmount: "எவ்வளவு பணம் சேர்க்க விரும்புகிறீர்கள்?",
+    err_amount: "எனக்குத் தொகை புரியவில்லை.",
+    err_insufficient: "இருப்பு போதாது. உங்கள் இருப்பு {bal}.",
+    err_limit: "ஒரு முறைக்கு 50,000 ரூபாய் வரை சேர்க்கலாம்.",
+    err_digits: "தயவுசெய்து {n} இலக்கங்களைச் சொல்லுங்கள்.",
+    err_digitsRange: "தயவுசெய்து {a} முதல் {b} இலக்கங்களைச் சொல்லுங்கள்.",
+    err_text: "எனக்குப் புரியவில்லை.",
+    desc_send: "{recipient} அவர்களுக்கு {amount} அனுப்பப்பட்டது.",
+    desc_bill_electricity: "மின் கட்டணத்துக்கு {amount} செலுத்தப்பட்டது, நுகர்வோர் எண் {consumer}.",
+    desc_bill_water: "தண்ணீர் கட்டணத்துக்கு {amount} செலுத்தப்பட்டது, நுகர்வோர் எண் {consumer}.",
+    desc_mobile: "{mobile} எண்ணுக்கு {amount} ரீசார்ஜ் செய்யப்பட்டது.",
+    desc_qr: "வணிகர் {merchant} அவர்களுக்கு {amount} செலுத்தப்பட்டது.",
+    desc_add: "உங்கள் வாலட்டில் {amount} சேர்க்கப்பட்டது.",
+    infoBalanceTitle: "வாலட் இருப்பு",
+    availBalance: "கிடைக்கும் இருப்பு",
+    sayBalance: "உங்கள் வாலட் இருப்பு {n} ரூபாய்.",
+    infoHistoryTitle: "சமீபத்திய பரிவர்த்தனைகள்",
+    noTx: "இன்னும் பரிவர்த்தனைகள் இல்லை.",
+    sayNoTx: "உங்களுக்கு இன்னும் பரிவர்த்தனைகள் இல்லை.",
+    sayHistory: "உங்கள் சமீபத்திய பரிவர்த்தனைகள். {list}",
+    pinTitle: "பின் உள்ளிடவும்",
+    pinPh: "4 இலக்க பின்",
+    pinConfirm: "உறுதி செய்",
+    pinCancel: "ரத்து செய்",
+    pinSay: "தயவுசெய்து உங்கள் 4 இலக்க பின்னைத் தட்டச்சு செய்து உறுதி செய் என்பதைத் தொடுங்கள்.",
+    pinWrong: "தவறான பின். மீண்டும் முயற்சிக்கவும்.",
+    pinTooMany: "அதிக தவறான முயற்சிகள். பரிவர்த்தனை ரத்து செய்யப்பட்டது.",
+    cancelled: "பரிவர்த்தனை ரத்து செய்யப்பட்டது.",
+    paySuccess: "பணம் செலுத்தப்பட்டது",
+    moneyAdded: "பணம் சேர்க்கப்பட்டது",
+    newBalance: "புதிய இருப்பு: {bal}.",
+    sayNewBalance: "உங்கள் புதிய இருப்பு {n} ரூபாய்."
+  }
+};
+
+// t("key", {name: value}) -> text in the selected language (falls back to English)
+function t(key, vars) {
+  let s = (I18N[LANG] && I18N[LANG][key]) || I18N["en-IN"][key] || key;
+  if (vars) for (const k in vars) s = s.split("{" + k + "}").join(vars[k]);
+  return s;
+}
+
+// =====================================================
+// Demo data (kept in the browser, no real money)
+// =====================================================
+const store = { balance: 10000, history: [] };
+try { const s = JSON.parse(localStorage.getItem("vp_state")); if (s) Object.assign(store, s); } catch (e) {}
+function saveStore() { try { localStorage.setItem("vp_state", JSON.stringify(store)); } catch (e) {} }
+const fmt = n => "₹" + Number(n).toLocaleString("en-IN");
+const PIN = "1234";
+
+// =====================================================
+// Helpers to understand spoken text and numbers (English, Hindi, Tamil)
+// =====================================================
+// Unicode normalisation makes Hindi and Tamil text compare reliably
+const norm = s => s.normalize("NFC").toLowerCase();
+const rx = s => new RegExp(s.normalize("NFC"), "i");
+
+// Number words. Chrome usually returns digits, but words are handled too.
+const NUM_RAW = {
+  // English
+  zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,
+  twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,
+  // Hindi
+  "शून्य":0,"ज़ीरो":0,"जीरो":0,"एक":1,"दो":2,"तीन":3,"चार":4,"पांच":5,"पाँच":5,"छह":6,"छः":6,"छे":6,"सात":7,"आठ":8,"नौ":9,"दस":10,
+  "बीस":20,"तीस":30,"चालीस":40,"पचास":50,"साठ":60,"सत्तर":70,"अस्सी":80,"नब्बे":90,
+  // Tamil
+  "பூஜ்ஜியம்":0,"ஒன்று":1,"இரண்டு":2,"மூன்று":3,"நான்கு":4,"ஐந்து":5,"ஆறு":6,"ஏழு":7,"எட்டு":8,"ஒன்பது":9,"பத்து":10,
+  "இருபது":20,"முப்பது":30,"நாற்பது":40,"ஐம்பது":50,"அறுபது":60,"எழுபது":70,"எண்பது":80,"தொண்ணூறு":90,
+  "இருநூறு":200,"முந்நூறு":300,"நானூறு":400,"ஐநூறு":500,"அறுநூறு":600,"எழுநூறு":700,"எண்ணூறு":800,"தொள்ளாயிரம்":900
+};
+const NUM = new Map(Object.entries(NUM_RAW).map(([k, v]) => [k.normalize("NFC"), v]));
+const HUNDRED = new Set(["hundred", "सौ", "நூறு"].map(w => w.normalize("NFC")));
+const THOUSAND = new Set(["thousand", "हज़ार", "हजार", "ஆயிரம்", "ஆயிரத்து"].map(w => w.normalize("NFC")));
+
+// Converts Hindi and Tamil digits (०-९, ௦-௯) to normal digits
+function normDigits(s) {
+  return s.replace(/[०-९]/g, d => "०१२३४५६७८९".indexOf(d)).replace(/[௦-௯]/g, d => "௦௧௨௩௪௫௬௭௮௯".indexOf(d));
+}
+
+function parseAmount(text) {
+  const t0 = normDigits(norm(text)).replace(/,/g, "");
+  const m = t0.match(/\d+(\.\d+)?/);              // "199", "₹500", "500 rupees"
+  if (m) return parseFloat(m[0]);
+  let total = 0, current = 0, found = false;      // "five hundred", "पाँच सौ", "ஐநூறு"
+  for (const w of t0.split(/[\s-]+/)) {
+    if (NUM.has(w)) { current += NUM.get(w); found = true; }
+    else if (HUNDRED.has(w)) { current = (current || 1) * 100; found = true; }
+    else if (THOUSAND.has(w)) { total += (current || 1) * 1000; current = 0; found = true; }
+  }
+  return found ? total + current : NaN;
+}
+
+function digitsFrom(text) {                        // "99943 59332" or "nine nine nine..."
+  return normDigits(norm(text)).split(/[\s-]+/).map(w => {
+    if (w === "oh") return "0";
+    if (NUM.has(w) && NUM.get(w) < 10) return String(NUM.get(w));
+    return w.replace(/\D/g, "");
+  }).join("");
+}
+
+// =====================================================
+// OOP: base class + one subclass per service (abstraction)
+// =====================================================
+class PaymentService {
+  // fields: { key, tr (translation id), type, min, max }
+  constructor(titleKey, icon, fields, isDebit = true) {
+    this.titleKey = titleKey; this.icon = icon; this.fields = fields; this.isDebit = isDebit;
+  }
+  get title() { return t(this.titleKey); }
+  describe(values) { throw new Error("Each service must define describe()"); }
+
+  check(field, raw) {                              // validation shared by all services
+    if (field.type === "amount") {
+      const n = parseAmount(raw);
+      if (!(n > 0)) return { ok: false, msg: t("err_amount") };
+      if (this.isDebit && n > store.balance) return { ok: false, msg: t("err_insufficient", { bal: fmt(store.balance) }) };
+      if (!this.isDebit && n > 50000) return { ok: false, msg: t("err_limit") };
+      return { ok: true, value: n };
+    }
+    if (field.type === "digits") {
+      const d = digitsFrom(raw);
+      if (d.length < field.min || d.length > field.max) {
+        return { ok: false, msg: field.min === field.max ? t("err_digits", { n: field.min }) : t("err_digitsRange", { a: field.min, b: field.max }) };
+      }
+      return { ok: true, value: d };
+    }
+    const s = raw.trim();
+    return s.length > 1 ? { ok: true, value: s } : { ok: false, msg: t("err_text") };
+  }
+
+  execute(values) {                                // runs after the PIN is correct
+    store.balance += this.isDebit ? -values.amount : values.amount;
+    const text = this.describe(values);
+    store.history.unshift({ title: this.title, text: text, amount: values.amount, debit: this.isDebit, time: new Date().toLocaleString("en-IN") });
+    store.history = store.history.slice(0, 20);
+    saveStore();
+    return text;
+  }
+}
+
+class MoneyTransfer extends PaymentService {
+  constructor() { super("title_send", "💸", [
+    { key: "recipient", tr: "recipient", type: "text" },
+    { key: "amount", tr: "amount", type: "amount" } ]); }
+  describe(v) { return t("desc_send", { amount: fmt(v.amount), recipient: v.recipient }); }
+}
+class BillPayment extends PaymentService {
+  constructor(kind, icon) { super("bill_" + kind, icon, [
+    { key: "consumer", tr: "consumer", type: "digits", min: 6, max: 12 },
+    { key: "amount", tr: "billAmount", type: "amount" } ]);
+    this.kind = kind; }
+  describe(v) { return t("desc_bill_" + this.kind, { amount: fmt(v.amount), consumer: v.consumer }); }
+}
+class MobileRecharge extends PaymentService {
+  constructor() { super("title_mobile", "📱", [
+    { key: "mobile", tr: "mobile", type: "digits", min: 10, max: 10 },
+    { key: "amount", tr: "rechargeAmount", type: "amount" } ]); }
+  describe(v) { return t("desc_mobile", { mobile: v.mobile, amount: fmt(v.amount) }); }
+}
+class QRPayment extends PaymentService {
+  constructor() { super("title_qr", "🔳", [
+    { key: "merchant", tr: "merchant", type: "text" },
+    { key: "amount", tr: "amount", type: "amount" } ]); }
+  describe(v) { return t("desc_qr", { amount: fmt(v.amount), merchant: v.merchant }); }
+}
+class AddMoney extends PaymentService {
+  constructor() { super("title_add", "👛", [
+    { key: "amount", tr: "addAmount", type: "amount" } ], false); }
+  describe(v) { return t("desc_add", { amount: fmt(v.amount) }); }
+}
+
+// Services that only show information (no fields, no PIN)
+class BalanceCheck {
+  constructor() { this.icon = "🏦"; this.fields = []; }
+  get title() { return t("title_balance"); }
+  run() {
+    $("infoTitle").textContent = t("infoBalanceTitle");
+    $("infoBody").innerHTML = '<div class="info-line">' + t("availBalance") + '</div><div class="big">' + fmt(store.balance) + '</div>';
+    show("info");
+    say(t("sayBalance", { n: store.balance }));
+  }
+}
+class TransactionHistory {
+  constructor() { this.icon = "🧾"; this.fields = []; }
+  get title() { return t("title_history"); }
+  run() {
+    $("infoTitle").textContent = t("infoHistoryTitle");
+    const body = $("infoBody");
+    if (store.history.length === 0) {
+      body.innerHTML = '<div class="info-line">' + t("noTx") + '</div>';
+      show("info"); say(t("sayNoTx")); return;
+    }
+    body.innerHTML = store.history.slice(0, 8).map(h =>
+      '<div class="info-line"><strong>' + (h.debit ? "−" : "+") + fmt(h.amount) + "</strong> " + h.text + "<br><small>" + h.time + "</small></div>").join("");
+    show("info");
+    const top = store.history.slice(0, 3).map(h => h.text).join(" ");
+    say(t("sayHistory", { list: top }));
+  }
+}
+
+// Service list used for the home tiles
+const SERVICES = [
+  () => new MoneyTransfer(),
+  () => new BillPayment("electricity", "💡"),
+  () => new MobileRecharge(),
+  () => new BillPayment("water", "🚰"),
+  () => new QRPayment(),
+  () => new AddMoney(),
+  () => new BalanceCheck(),
+  () => new TransactionHistory()
+];
+
+// Keywords in English, Hindi and Tamil (checked whichever language is selected)
+const CMD = {
+  balance:  rx("balance|बैलेंस|बैलन्स|शेष|இருப்பு|பேலன்ஸ்|மீதி"),
+  history:  rx("history|transaction|statement|इतिहास|हिस्ट्री|लेनदेन|लेन-देन|ट्रांजैक्शन|ट्रांज़ैक्शन|ट्रांजेक्शन|स्टेटमेंट|வரலாறு|ஹிஸ்டரி|பரிவர்த்தனை|ஸ்டேட்மென்ட்"),
+  addMoney: rx("add money|wallet|top ?up|पैसे जोड़|पैसा जोड़|पैसे डाल|वॉलेट|वालेट|टॉप ?अप|பணம் சேர்|வாலட்|வாலெட்|டாப் ?அப்"),
+  water:    rx("water|पानी|वाटर|தண்ணீர்|நீர்|வாட்டர்"),
+  electric: rx("electric|bill|बिजली|इलेक्ट्रिक|बिल|மின்|எலக்ட்ரிக்|பில்|கட்டணம்"),
+  recharge: rx("recharge|रिचार्ज|ரீசார்ஜ்|ரீசார்ச்|ரீசார்"),
+  qr:       rx("qr|क्यू ?आर|क्यूआर|க்யூ ?ஆர்|கியூ ?ஆர்"),
+  transfer: rx("transfer|send|ट्रांसफर|भेज|सेंड|அனுப்|டிரான்ஸ்ஃபர்|டிரான்ஸ்பர்|ட்ரான்ஸ்பர்")
+};
+const CANCEL  = rx("\\b(cancel|go home|home|back)\\b|रद्द|कैंसिल|वापस|होम|पीछे|ரத்து|கேன்சல்|திரும்ப|ஹோம்|முகப்பு");
+const CONFIRM = rx("\\b(pay|confirm|yes)\\b|हाँ|हां|पक्का|कन्फर्म|भुगतान|ஆம்|உறுதி|செலுத்து");
+
+// Maps the spoken text to a service
+function mapCommand(text) {
+  const c = norm(text);
+  if (CMD.balance.test(c)) return new BalanceCheck();
+  if (CMD.history.test(c)) return new TransactionHistory();
+  if (CMD.addMoney.test(c)) return new AddMoney();
+  if (CMD.water.test(c)) return new BillPayment("water", "🚰");
+  if (CMD.electric.test(c)) return new BillPayment("electricity", "💡");
+  if (CMD.recharge.test(c)) return new MobileRecharge();
+  if (CMD.qr.test(c)) return new QRPayment();
+  if (CMD.transfer.test(c)) return new MoneyTransfer();
+  return null;
+}
+
+// =====================================================
+// Screen helpers
+// =====================================================
+const $ = id => document.getElementById(id);
+function show(name) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  $(name).classList.add("active");
+}
+function updateBalance() { $("balance").textContent = fmt(store.balance); }
+function showSay(msg) { $("say").textContent = msg; }
+
+function renderTiles() {
+  $("tiles").innerHTML = "";
+  SERVICES.forEach(make => {
+    const s = make();
+    const b = document.createElement("button");
+    b.className = "tile";
+    b.innerHTML = '<span class="ico">' + s.icon + "</span>" + s.title;
+    b.addEventListener("click", () => openService(make()));
+    $("tiles").appendChild(b);
+  });
+}
+
+// Writes all fixed texts of the page in the selected language
+function applyLang() {
+  document.documentElement.lang = LANG.split("-")[0];
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  document.querySelectorAll("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t(el.dataset.i18nAria)); });
+  renderTiles();
+  showSay(t("tapMic"));
+  $("heard").textContent = "";
+  $("voiceNote").textContent = "";
+  $("status").textContent = t("ready");
+}
+
+// =====================================================
+// Voice output (Speech Synthesis)
+// =====================================================
+// Returns a matching voice, null if none is installed, or undefined if the list is not loaded yet
+function pickVoice() {
+  const vs = window.speechSynthesis.getVoices();
+  if (!vs.length) return undefined;
+  const base = LANG.split("-")[0].toLowerCase();
+  const lang = v => v.lang.replace("_", "-").toLowerCase();
+  return vs.find(v => lang(v) === LANG.toLowerCase()) || vs.find(v => lang(v).startsWith(base)) || null;
+}
+
+function say(message, then) {
+  showSay(message);
+  let called = false;
+  const go = () => { if (called) return; called = true; if (then) setTimeout(then, 250); };
+  if (!("speechSynthesis" in window)) { go(); return; }
+  window.speechSynthesis.cancel();
+  const voice = pickVoice();
+  if (voice === null) {                           // no voice for this language: show text only
+    $("voiceNote").textContent = t("noVoiceOut");
+    setTimeout(go, Math.min(4000, 800 + message.length * 40));
+    return;
+  }
+  $("voiceNote").textContent = "";
+  const u = new SpeechSynthesisUtterance(message);
+  u.lang = LANG; if (voice) u.voice = voice;
+  u.onend = go; u.onerror = go;
+  window.speechSynthesis.speak(u);
+  setTimeout(go, Math.max(2500, message.length * 110));   // safety net if the browser never reports the end
+}
+if ("speechSynthesis" in window) window.speechSynthesis.onvoiceschanged = () => {};
+
+// =====================================================
+// Voice input (Speech Recognition)
+// =====================================================
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, noHear = 0, currentPrompt = "";
+
+function listen() {
+  if (!SR) { $("status").textContent = t("noVoiceInput"); return; }
+  if (awaitingPin) return;
+  try { if (rec) { rec.onend = null; rec.abort(); } } catch (e) {}
+  rec = new SR();
+  rec.lang = LANG; rec.interimResults = false; rec.maxAlternatives = 1;
+  let got = false, lastErr = "";
+  rec.onstart = () => { $("mic").classList.add("listening"); $("status").textContent = t("listening"); };
+  rec.onresult = e => { got = true; noHear = 0; handleInput(e.results[0][0].transcript); };
+  rec.onerror = e => { lastErr = e.error; };
+  rec.onend = () => {
+    $("mic").classList.remove("listening");
+    if (got || awaitingPin) return;
+    if (lastErr === "not-allowed" || lastErr === "service-not-allowed") {
+      $("status").textContent = t("micBlocked"); return;
+    }
+    if (lastErr === "no-speech" && noHear < 2) {
+      noHear++; say(t("didNotHear") + currentPrompt, listen); return;
+    }
+    $("status").textContent = t("tryAgain");
+  };
+  try { rec.start(); } catch (e) { $("status").textContent = t("tryAgain"); }
+}
+
+// =====================================================
+// Conversation flow
+// =====================================================
+let svc = null, idx = 0, awaitingPin = false, pinTries = 0, pendingValues = null, welcomed = false;
+
+function goHome() {
+  svc = null; idx = 0; awaitingPin = false; pendingValues = null;
+  $("pinOverlay").classList.remove("show");
+  $("success").classList.remove("show");
+  currentPrompt = t("homePrompt");
+  updateBalance(); show("home"); $("status").textContent = t("ready");
+}
+
+function openService(s) {
+  if (!s.fields || s.fields.length === 0) { s.run(); return; }   // info pages
+  svc = s; idx = 0; awaitingPin = false;
+  $("svcTitle").textContent = s.icon + " " + s.title;
+  $("formFields").innerHTML = s.fields.map(f =>
+    '<label for="f_' + f.key + '">' + t("lbl_" + f.tr) + '</label><input id="f_' + f.key + '" type="text" autocomplete="off">').join("");
+  show("svc");
+  ask();
+}
+
+function ask() {
+  currentPrompt = t("prm_" + svc.fields[idx].tr);
+  say(svc.title + ". " + currentPrompt, listen);
+}
+
+function handleInput(text) {
+  $("heard").textContent = t("youSaid") + text;
+  const c = norm(text);
+
+  if (CANCEL.test(c)) {
+    say(t("goingHome"), goHome); return;
+  }
+
+  if (!svc) {                                   // no service open: understand the command
+    const s = mapCommand(text);
+    if (!s) { say(t("notUnderstood"), listen); return; }
+    openService(s);
+    return;
+  }
+
+  if (idx >= svc.fields.length) {               // form already full
+    if (CONFIRM.test(c)) submitForm();
+    else say(t("sayPayConfirm"), listen);
+    return;
+  }
+
+  const field = svc.fields[idx];
+  const result = svc.check(field, text);
+  if (!result.ok) { say(result.msg + " " + t("prm_" + field.tr), listen); return; }
+  $("f_" + field.key).value = result.value;
+  idx++;
+  if (idx < svc.fields.length) ask(); else submitForm();
+}
+
+// Reads the form (typed or spoken), validates, then asks for the PIN
+function submitForm() {
+  const values = {};
+  for (const f of svc.fields) {
+    const raw = $("f_" + f.key).value;
+    const r = svc.check(f, raw);
+    if (!r.ok) { say(r.msg + " " + t("fixField", { label: t("lbl_" + f.tr) }), null); $("f_" + f.key).focus(); return; }
+    values[f.key] = r.value;
+  }
+  pendingValues = values;
+  awaitingPin = true; pinTries = 0;
+  try { if (rec) { rec.onend = null; rec.abort(); } } catch (e) {}
+  $("mic").classList.remove("listening");
+  $("pinInfo").textContent = svc.describe(values);
+  $("pinOverlay").classList.add("show");
+  $("pin").value = ""; $("pin").focus();
+  say(t("pinSay"));
+}
+
+function confirmPin() {
+  const entered = $("pin").value;
+  $("pin").value = "";
+  if (entered === PIN) {
+    const text = svc.execute(pendingValues);
+    $("pinOverlay").classList.remove("show");
+    awaitingPin = false;
+    updateBalance();
+    $("successTitle").textContent = svc.isDebit ? t("paySuccess") : t("moneyAdded");
+    $("successText").textContent = text + " " + t("newBalance", { bal: fmt(store.balance) });
+    $("success").classList.add("show");
+    say(text + " " + t("sayNewBalance", { n: store.balance }));
+  } else {
+    pinTries++;
+    if (pinTries >= 3) { $("pinOverlay").classList.remove("show"); say(t("pinTooMany"), goHome); return; }
+    say(t("pinWrong"));
+    $("pin").focus();
+  }
+}
+
+// =====================================================
+// Buttons
+// =====================================================
+$("lang").addEventListener("change", e => {
+  LANG = e.target.value;
+  try { localStorage.setItem("vp_lang", LANG); } catch (err) {}
+  try {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (rec) { rec.onend = null; rec.abort(); }
+  } catch (err) {}
+  $("mic").classList.remove("listening");
+  welcomed = false;
+  applyLang();
+  goHome();
+});
+
+$("mic").addEventListener("click", () => {
+  if (!svc && !welcomed) {
+    welcomed = true;
+    say(t("welcome"), listen);
+  } else { noHear = 0; listen(); }
+});
+$("sendTyped").addEventListener("click", () => {
+  const box = $("typed");
+  if (box.value.trim()) { handleInput(box.value.trim()); box.value = ""; }
+});
+$("typed").addEventListener("keydown", e => { if (e.key === "Enter") $("sendTyped").click(); });
+$("payBtn").addEventListener("click", () => { if (svc) submitForm(); });
+$("backSvc").addEventListener("click", goHome);
+$("backInfo").addEventListener("click", goHome);
+$("pinOk").addEventListener("click", confirmPin);
+$("pin").addEventListener("keydown", e => { if (e.key === "Enter") confirmPin(); });
+$("pinCancel").addEventListener("click", () => { say(t("cancelled"), goHome); });
+$("doneBtn").addEventListener("click", goHome);
+
+// Start
+$("lang").value = LANG;
+applyLang();
+currentPrompt = t("homePrompt");
+updateBalance();
+</script>
+</body>
+</html>
