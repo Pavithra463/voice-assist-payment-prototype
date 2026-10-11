@@ -3,6 +3,8 @@
 A prototype of a voice-guided payment application designed to make digital payments easier for visually impaired and less-educated users. Instead of reading screens and filling many fields, the user speaks a command and the app guides them step by step with voice.
 
 > **Note:** This is a learning prototype. All payments are simulated. There is no real bank, payment gateway, or real money involved.
+>
+> **Live demo:** https://pavithra463.github.io/voice-assist-payment-prototype/web/voice-pay.html (open in Chrome and allow the microphone)
 
 ## What it does
 
